@@ -4,10 +4,11 @@ import signal
 import sys
 
 from PyQt5.QtWidgets import QApplication, QMainWindow, QDesktopWidget, QWidget, QVBoxLayout, \
-    QScrollArea, QHBoxLayout, QPushButton, QTextEdit
+    QPushButton, QTextEdit
 from PyQt5.QtCore import Qt, QTimer
 
 from qt_actor.actor import Actor
+from qt_actor.messages import Stop
 from qt_actor.system import ActorSystem
 
 root = logging.getLogger()
@@ -18,8 +19,8 @@ formatter = logging.Formatter('%(levelname)s %(name)s - %(message)s')
 handler.setFormatter(formatter)
 root.addHandler(handler)
 
-
 logger = logging.getLogger(__name__)
+
 
 class EchoWidget(QWidget):
 
@@ -58,17 +59,33 @@ class Gui(QMainWindow):
         self.text_edit.clear()
         self.echo_actor.send(text)
 
-    def add_text(self, text: str) -> None:
-        pass
-
 
 class EchoActor(Actor):
 
-    def __init__(self, *nargs, **kwargs) -> None:
-        super().__init__(*nargs, **kwargs)
+    def __init__(self, actor_system, quit_actor, *nargs, **kwargs) -> None:
+        super().__init__(actor_system, *nargs, **kwargs)
+        self.__quit_actor = quit_actor
 
     def act(self, message, sender) -> None:
-        logger.info('>>>> {}'.format(message))
+        if message is Stop:
+            logger.info('>>>> Stopping.')
+        else:
+            if message == 'STOP':
+                self.send(Stop)
+                self.__quit_actor.send(None)
+
+            logger.info('>>>> {}'.format(message))
+
+
+class QuitActor(Actor):
+
+    def __init__(self, actor_system, app, *nargs, **kwargs) -> None:
+        super().__init__(actor_system, *nargs, **kwargs)
+        self.__app = app
+
+    def act(self, message, sender) -> None:
+        self.send(Stop)
+        self.__app.quit()
 
 
 def handle_signals(app) -> None:
@@ -85,9 +102,10 @@ def main() -> None:
     app.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
     system = ActorSystem()
-    echo_actor = system.create_actor(EchoActor, actor_name='echo')
+    quit_actor = system.create_actor(QuitActor, app, actor_name='quit')
+    echo_actor = system.create_actor(EchoActor, quit_actor, actor_name='echo')
 
-    gui = Gui(echo_actor)
+    gui = Gui(echo_actor) # noqa
 
     handle_signals(app)
     timer = QTimer()

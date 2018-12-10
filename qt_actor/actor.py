@@ -1,19 +1,23 @@
 import logging
 
-from PyQt5.QtCore import QRunnable, pyqtSignal
+from PyQt5.QtCore import QRunnable
 from uuid import uuid4
+
+from .messages import Stop
 
 logger = logging.getLogger(__name__)
 
 
 class Actor(QRunnable):
 
-    def __init__(self, actor_system, actor_name: str = None) -> None:
+    def __init__(self, actor_system, *nargs, **kwargs) -> None:
         super().__init__()
-        self.setAutoDelete(False)
+        self.setAutoDelete(False)  # required by Qt
+
         self.__system = actor_system
         self.__inbox = []
 
+        actor_name = kwargs.pop('actor_name', None)
         if actor_name is None:
             actor_name = uuid4()
         self.__name = str(actor_name)
@@ -46,8 +50,13 @@ class Actor(QRunnable):
             if self.__inbox:
                 try:
                     message, sender = self.__inbox.pop()
-                    logger.debug('{!r}: Processing message {!r} from {!r}.'.format(self, message, sender))
+                    logger.debug('{!r}: Processing message {!r} from {!r}.'
+                                 .format(self, message, sender))
                     self.act(message, sender)
+
+                    if message is Stop:
+                        self.__system._remove_actor(self)
+                        return
                 except Exception as e:
                     logger.error('Exception thrown: {}'.format(e))
 
