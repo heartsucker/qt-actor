@@ -20,7 +20,7 @@ class ActorSystem(QObject):
         self.__running = {}
         self.__thread_pool = QThreadPool()
 
-    def create_actor(self, actor_class: type, *nargs, **kwargs) -> None:
+    def create_actor(self, actor_class: type, *nargs, **kwargs):
         with self.__lock():
             actor = actor_class(self, *nargs, **kwargs)
 

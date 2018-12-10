@@ -16,6 +16,7 @@ class Actor(QRunnable):
 
         self.__system = actor_system
         self.__inbox = []
+        self.__actors = {}
 
         actor_name = kwargs.pop('actor_name', None)
         if actor_name is None:
@@ -45,6 +46,15 @@ class Actor(QRunnable):
         logger.info('Message {!r} being sent to {!r} from {!r}'.format(message, self, sender))
         self.__system._send(self, message, sender)
 
+    def create_actor(self, actor_class: type, *nargs, **kwargs):
+        actor = self.__system.create_actor(actor_class, *nargs, **kwargs)
+        self.__actors[actor.name] = actor
+        return actor
+
+    def remove_actor(self, actor):
+        self.__actors.pop(actor.name, None)
+        actor.send(Stop)
+
     def run(self) -> None:
         while True:
             if self.__inbox:
@@ -55,6 +65,8 @@ class Actor(QRunnable):
                     self.act(message, sender)
 
                     if message is Stop:
+                        for actor in self.__actors.values():
+                            actor.send(Stop)
                         self.__system._remove_actor(self)
                         return
                 except Exception as e:
