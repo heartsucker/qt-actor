@@ -14,6 +14,9 @@ class Actor(QRunnable):
         super().__init__()
         self.setAutoDelete(False)  # required by Qt
 
+        self.__is_running = False
+        self.__is_stopped = False
+        self.__run_call_count = 0
         self.__system = actor_system
         self.__inbox = []
         self.__actors = {}
@@ -34,6 +37,18 @@ class Actor(QRunnable):
     @name.deleter
     def name(self) -> None:
         raise AttributeError("'name' is read only.")
+
+    @property
+    def is_running(self) -> str:
+        return self.__is_running
+
+    @is_running.setter
+    def is_running(self) -> None:
+        raise AttributeError("'is_running' is read only.")
+
+    @is_running.deleter
+    def is_running(self) -> None:
+        raise AttributeError("'is_running' is read only.")
 
     def act(self, message, sender=None) -> None:
         raise NotImplementedError
@@ -56,7 +71,14 @@ class Actor(QRunnable):
         actor.send(Stop)
 
     def run(self) -> None:
-        while True:
+        self.__run_call_count += 1
+
+        # if this thread is already running somewhere else, exit and let the other do the work
+        if self.__is_running:
+            return
+
+        self.__is_running = True
+        while self.__run_call_count and not self.__is_stopped:
             if self.__inbox:
                 try:
                     message, sender = self.__inbox.pop()
@@ -68,9 +90,13 @@ class Actor(QRunnable):
                         for actor in self.__actors.values():
                             actor.send(Stop)
                         self.__system._remove_actor(self)
-                        return
+                        self.__is_stopped = True
+                        break
                 except Exception as e:
                     logger.error('Exception thrown: {}'.format(e))
+            else:
+                self.__run_call_count -= 1
+        self.__is_running = False
 
     def __repr__(self) -> str:
         return '<Actor {}>'.format(self.name)

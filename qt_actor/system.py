@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from PyQt5.QtCore import QObject, QThreadPool, QMutex
 
 from .actor import Actor
+from .messages import Stop
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +16,7 @@ class ActorSystem(QObject):
 
         self.__mutex = QMutex()
         self.__is_running = False
-
         self.__actors = {}
-        self.__running = {}
         self.__thread_pool = QThreadPool()
 
     def create_actor(self, actor_class: type, *nargs, **kwargs):
@@ -30,14 +29,10 @@ class ActorSystem(QObject):
                 # TODO handle this case, stop old actor, etc
                 pass
 
-            if self.__is_running:
-                self.__start_actor(actor)
-
             return actor
 
     def _remove_actor(self, actor) -> None:
         self.__actors.pop(actor.name, None)
-        self.__running.pop(actor.name, None)
 
     @contextmanager
     def __lock(self) -> None:
@@ -53,17 +48,15 @@ class ActorSystem(QObject):
         logger.info('Starting system.')
         with self.__lock():
             self.__is_running = True
-            for actor in self.__actors.values():
-                self.__start_actor(actor)
 
-    def __start_actor(self, actor: Actor) -> None:
-        if actor.name not in self.__running:
-            logger.info('Starting actor {!r}'.format(actor))
-            self.__thread_pool.start(actor)
-            self.__running[actor.name] = actor
+    def stop(self) -> None:
+        for actor in list(self.__actors.values()):
+            self._send(actor, Stop)
+
+        while self.__actors:
+            pass
 
     def _send(self, receiver: Actor, message, sender: Actor = None) -> None:
-        if receiver.name in self.__running:
+        if receiver.name in self.__actors:
             receiver._receive(message, sender)
-        else:
-            raise RuntimeError('Actor {!r} is not running.'.format(self.receiver.name))
+            self.__thread_pool.start(receiver)
