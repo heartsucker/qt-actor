@@ -1,3 +1,4 @@
+import collections
 import logging
 
 from PyQt5.QtCore import QRunnable
@@ -18,7 +19,7 @@ class Actor(QRunnable):
         self.__is_stopped = False
         self.__run_call_count = 0
         self.__system = actor_system
-        self.__inbox = []
+        self.__inbox = collections.deque()
         self.__actors = {}
 
         actor_name = kwargs.pop('actor_name', None)
@@ -55,7 +56,7 @@ class Actor(QRunnable):
 
     def _receive(self, message, sender) -> None:
         logger.info('Receiving message {!r} from {!r}'.format(message, sender))
-        self.__inbox.append((message, sender))
+        self.__inbox.appendleft((message, sender))
 
     def send(self, message, sender=None) -> None:
         logger.info('Message {!r} being sent to {!r} from {!r}'.format(message, self, sender))
